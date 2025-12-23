@@ -3,7 +3,7 @@ import sqlite3
 from datetime import datetime, timezone
 from typing import List
 
-from fastapi import FastAPI, HTTPException, Path
+from fastapi import FastAPI, HTTPException, Path, Body
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -11,17 +11,21 @@ from pydantic import BaseModel, Field
 # PUBLIC_INTERFACE
 def get_database_path() -> str:
     """Return the path to the SQLite database used by the shared database container.
-    This uses the relative path to the database container's SQLite file.
+    This uses an absolute path to the database container's SQLite file.
     Environment variables can optionally override this via SQLITE_DB.
     """
     # Allow override by env var if present
     env_db = os.getenv("SQLITE_DB")
     if env_db and env_db.strip():
         return env_db
-    # Default path based on provided instructions
-    return os.path.join(
-        "simple-todo-manager-301425", "database", "myapp.db"
-    )
+    
+    # Default path: calculate absolute path to the shared database
+    # From todo_backend directory, go up two levels then into database container
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    # Navigate from src/api/ up to workspace root
+    workspace_root = os.path.abspath(os.path.join(current_dir, "..", "..", "..", ".."))
+    default_path = os.path.join(workspace_root, "simple-todo-manager-301425", "database", "myapp.db")
+    return default_path
 
 
 def get_connection() -> sqlite3.Connection:
@@ -98,7 +102,7 @@ app = FastAPI(
     ],
 )
 
-# CORS: only allow frontend origin as requested
+# CORS: allow frontend origin as requested
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -198,7 +202,7 @@ def create_task(payload: TaskCreate) -> Task:
 )
 def update_task(
     task_id: int = Path(..., description="The ID of the task to update"),
-    payload: TaskUpdate = None,
+    payload: TaskUpdate = Body(...),
 ) -> Task:
     """Update the title of an existing task."""
     now = utc_now_iso()
